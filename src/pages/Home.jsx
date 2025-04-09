@@ -1,74 +1,116 @@
 import MovieCard from "../components/MovieCard"
 import { useState, useEffect } from "react";
-import { searchMovies, getPopularMovies } from "../services/api";
+import { searchMovies, getPopularMovies, getTrendingMovies, getUpcomingMovies } from "../services/api";
 import "../css/Home.css"
 
-
-function Home(){
+function Home() {
     const [searchQuery, setSearchQuery] = useState("");
     const [movies, setMovies] = useState([]);
+    const [trendingMovies, setTrendingMovies] = useState([]);
+    const [upcomingMovies, setUpcomingMovies] = useState([]);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [activeSection, setActiveSection] = useState('trending');
 
     useEffect(() => {
-        const loadPopularMovies = async() => {
+        const loadMovies = async () => {
             try {
-                const popularMovies = await getPopularMovies()
-                setMovies(popularMovies)
+                setLoading(true);
+                const [trending, upcoming] = await Promise.all([
+                    getTrendingMovies(),
+                    getUpcomingMovies()
+                ]);
+                setTrendingMovies(trending);
+                setUpcomingMovies(upcoming);
+                setMovies(trending); // Default to trending movies
             } catch (err) {
-                console.log(err)
-                setError("failed to load movies...")
-            }
-            finally {
-                setLoading(false)
+                console.error(err);
+                setError("Failed to load movies...");
+            } finally {
+                setLoading(false);
             }
         };
 
-        loadPopularMovies()
+        loadMovies();
     }, []);
 
     const handleSearch = async (e) => {
         e.preventDefault();
 
-        if (!searchQuery.trim()) return 
-        if (loading) return
+        if (!searchQuery.trim()) {
+            setMovies(trendingMovies);
+            setActiveSection('trending');
+            return;
+        }
 
-        setLoading(true)
-        try{
-            const searchResults = await searchMovies(searchQuery)
-            setMovies(searchResults)
-            setError(null)
-        } catch(err){
-            console.log(err)
-            setError("Failed to search movies...")
-        } finally{
-            setLoading(false)
+        if (loading) return;
+
+        setLoading(true);
+        try {
+            const searchResults = await searchMovies(searchQuery);
+            setMovies(searchResults);
+            setError(null);
+            setActiveSection('search');
+        } catch (err) {
+            console.error(err);
+            setError("Failed to search movies...");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSectionChange = (section) => {
+        setActiveSection(section);
+        switch (section) {
+            case 'trending':
+                setMovies(trendingMovies);
+                break;
+            case 'upcoming':
+                setMovies(upcomingMovies);
+                break;
+            default:
+                setMovies(trendingMovies);
         }
     };
 
     return (
         <div className="home">
-                <form onSubmit={handleSearch} className="search-form">
-                    <input 
-                        type="text" 
-                        placeholder="Search Movies..." 
-                        className="search-input"
-                        value={searchQuery} 
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <button type="submit" className="search-button">Search</button>
-                </form>
+            <form onSubmit={handleSearch} className="search-form">
+                <input 
+                    type="text" 
+                    placeholder="Search Movies..." 
+                    className="search-input"
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <button type="submit" className="search-button">Search</button>
+            </form>
 
-                {error && <div className="error-message">{error}</div>}
+            {error && <div className="error-message">{error}</div>}
 
-            {loading? (
+            <div className="section-tabs">
+                <button 
+                    className={`tab ${activeSection === 'trending' ? 'active' : ''}`}
+                    onClick={() => handleSectionChange('trending')}
+                >
+                    Trending Now
+                </button>
+                <button 
+                    className={`tab ${activeSection === 'upcoming' ? 'active' : ''}`}
+                    onClick={() => handleSectionChange('upcoming')}
+                >
+                    Coming Soon
+                </button>
+            </div>
+
+            {loading ? (
                 <div className="loading">Loading...</div>
             ) : (
                 <div className="movies-grid">
                     {movies.map((movie) => (
-                        <MovieCard movie={movie} key={movie.id}/>
-                ))}
-            </div>
+                        <MovieCard movie={movie} key={movie.id} />
+                    ))}
+                </div>
             )}
         </div>
     );
